@@ -59,8 +59,11 @@ export async function POST(req: NextRequest) {
   const dup = await prisma.event.findUnique({ where: { slug: data.slug } });
   if (dup) return jsonError("Ya existe un evento con ese identificador", 409);
 
-  // Aviso (no bloqueante) si la carpeta de Drive no es accesible.
-  const accessible = await verifyFolderAccessible(data.driveFolderId);
+  // Solo se verifica si el fotógrafo pegó un ID manual. Lo normal es dejarlo
+  // vacío y que la app cree la carpeta (accesible por definición).
+  const accessible = data.driveFolderId
+    ? await verifyFolderAccessible(data.driveFolderId)
+    : true;
 
   const event = await prisma.event.create({
     data: {
