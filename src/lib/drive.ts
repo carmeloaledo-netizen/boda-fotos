@@ -133,25 +133,47 @@ export async function ensureSubfolder(
 }
 
 /**
+ * Crea una carpeta raíz PROPIA de la app (sin padre → "Mi unidad" del
+ * fotógrafo, propiedad de la app). Necesario con scope drive.file, que solo
+ * permite acceder a archivos/carpetas creados por la propia app.
+ */
+export async function createRootFolder(name: string): Promise<string> {
+  if (isDriveMock()) return `mock-root-${name.replace(/\W+/g, "-")}`;
+  const drive = await getDrive();
+  const created = await drive.files.create({
+    requestBody: { name, mimeType: "application/vnd.google-apps.folder" },
+    fields: "id",
+    ...supportsAllDrives(),
+  });
+  if (!created.data.id) throw new Error("No se pudo crear la carpeta raíz en Drive");
+  return created.data.id;
+}
+
+/**
  * Garantiza la estructura del evento:
- *   <carpeta destino>/01_Fotos_invitados[/<invitado>]
- * Devuelve el ID de la carpeta donde debe colocarse el archivo.
+ *   <carpeta raíz de la app>/01_Fotos_invitados[/<invitado>]
+ * Si no hay carpeta raíz propia, la crea (nombrada por la pareja).
+ * Devuelve los IDs para persistirlos en el evento.
  */
 export async function ensureGuestFolder(
-  eventRootFolderId: string,
+  eventRootFolderId: string | null,
   guestsFolderId: string | null,
-  guestName?: string | null
-): Promise<{ guestsFolderId: string; targetFolderId: string }> {
+  guestName?: string | null,
+  coupleName?: string | null
+): Promise<{ rootFolderId: string; guestsFolderId: string; targetFolderId: string }> {
+  const root =
+    eventRootFolderId ||
+    (await createRootFolder(`Fotos boda - ${(coupleName || "evento").slice(0, 60)}`));
+
   const guests =
-    guestsFolderId ??
-    (await ensureSubfolder(eventRootFolderId, "01_Fotos_invitados"));
+    guestsFolderId ?? (await ensureSubfolder(root, "01_Fotos_invitados"));
 
   let target = guests;
   if (guestName && guestName.trim()) {
     const folderName = guestName.trim().slice(0, 60);
     target = await ensureSubfolder(guests, folderName);
   }
-  return { guestsFolderId: guests, targetFolderId: target };
+  return { rootFolderId: root, guestsFolderId: guests, targetFolderId: target };
 }
 
 /**
