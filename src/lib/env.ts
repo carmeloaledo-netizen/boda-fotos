@@ -32,22 +32,24 @@ const schema = z.object({
   RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(600),
 });
 
-// En test permitimos valores dummy para no exigir un entorno real.
-const isTest = process.env.NODE_ENV === "test" || process.env.VITEST;
+// En test (y durante `next build`, cuando las variables aún no existen)
+// permitimos valores dummy para no exigir un entorno real. En ejecución real
+// la validación sigue siendo estricta: si falta algo en runtime, lanza error.
+const isTest = process.env.NODE_ENV === "test" || Boolean(process.env.VITEST);
+const isBuild = process.env.NEXT_PHASE === "phase-production-build";
 
-const parsed = isTest
-  ? schema.safeParse({
-      DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://test",
-      ADMIN_USERNAME: process.env.ADMIN_USERNAME ?? "test",
-      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? "testtest12",
-      SESSION_SECRET: process.env.SESSION_SECRET ?? "test-secret-test-secret",
-      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "test",
-      GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? "test",
-      GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN ?? "test",
-      IP_HASH_SALT: process.env.IP_HASH_SALT ?? "test-salt-test-salt",
-      ...process.env,
-    })
-  : schema.safeParse(process.env);
+const PLACEHOLDERS: Record<string, string> = {
+  DATABASE_URL: "postgresql://placeholder",
+  ADMIN_USERNAME: "placeholder",
+  ADMIN_PASSWORD: "placeholder12",
+  SESSION_SECRET: "placeholder-secret-placeholder",
+  IP_HASH_SALT: "placeholder-salt-1234",
+};
+
+const source =
+  isTest || isBuild ? { ...PLACEHOLDERS, ...process.env } : process.env;
+
+const parsed = schema.safeParse(source);
 
 if (!parsed.success) {
   // No imprimimos los valores, solo qué claves fallan.
