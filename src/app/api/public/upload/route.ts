@@ -112,16 +112,18 @@ export async function POST(req: NextRequest) {
       return jsonError("El contenido no es una imagen admitida", 415);
     }
 
-    // 7) Carpeta destino en Drive (crea estructura de forma idempotente).
-    const { guestsFolderId, targetFolderId } = await ensureGuestFolder(
-      event.driveFolderId,
+    // 7) Carpeta destino en Drive. Con scope drive.file la app crea y posee
+    //    la carpeta raíz del evento (no se usa una carpeta pegada por el user).
+    const { rootFolderId, guestsFolderId, targetFolderId } = await ensureGuestFolder(
+      event.driveFolderId || null,
       event.driveGuestsFolderId,
-      guestName
+      guestName,
+      event.coupleName
     );
-    if (!event.driveGuestsFolderId) {
+    if (!event.driveFolderId || !event.driveGuestsFolderId) {
       await prisma.event.update({
         where: { id: event.id },
-        data: { driveGuestsFolderId: guestsFolderId },
+        data: { driveFolderId: rootFolderId, driveGuestsFolderId: guestsFolderId },
       });
     }
 
