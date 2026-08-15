@@ -52,7 +52,9 @@ export const eventCreateSchema = z.object({
     ),
   coupleName: z.string().trim().min(1).max(120),
   weddingDate: z.coerce.date(),
-  driveFolderId: z.string().trim().min(5).max(200),
+  // Opcional: con scope drive.file la app crea ella misma la carpeta del
+  // evento en el Drive del fotógrafo. Si se deja vacío, se crea al primer subida.
+  driveFolderId: z.string().trim().max(200).optional().default(""),
   closesAt: z.coerce.date().optional().nullable(),
   isActive: z.boolean().default(true),
   coverImageUrl: z.string().url().max(500).optional().nullable().or(z.literal("")),
