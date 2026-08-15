@@ -169,7 +169,14 @@ export async function POST(req: NextRequest) {
         ? "El archivo supera el tamaño máximo permitido"
         : "Error al subir el archivo";
     // Log sin datos sensibles.
-    console.error("upload_error", { eventId: event.id, key, message });
+    const anyErr = err as { message?: string; stack?: string; response?: { data?: unknown }; errors?: unknown };
+    console.error("upload_error", {
+      eventId: event.id,
+      key,
+      message,
+      detail: anyErr?.message,
+      driveError: anyErr?.response?.data ? JSON.stringify(anyErr.response.data) : anyErr?.errors,
+    });
     await prisma.upload
       .update({
         where: { id: record.id },
