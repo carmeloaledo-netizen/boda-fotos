@@ -1,0 +1,116 @@
+// Prisma schema — boda-fotos
+// Base de datos: PostgreSQL. NUNCA se almacenan las fotografías aquí,
+// solo metadatos. Los binarios viven exclusivamente en Google Drive.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Un evento = una boda. Tiene una carpeta de destino en Drive y un
+/// token público aleatorio que se valida junto al slug en cada subida.
+model Event {
+  id                String    @id @default(cuid())
+  // Identificador legible en la URL, único. Ej: "laura-pablo-2026".
+  slug              String    @unique
+  // Token público aleatorio (no adivinable). Se puede regenerar.
+  publicToken       String    @unique
+  coupleName        String
+  weddingDate       DateTime
+  // Carpeta de Drive elegida por el fotógrafo (destino raíz del evento).
+  driveFolderId     String
+  // Subcarpeta creada automáticamente ("01_Fotos_invitados").
+  driveGuestsFolderId String?
+  // Estado y cierre.
+  isActive          Boolean   @default(true)
+  closesAt          DateTime?
+  // Personalización visual.
+  coverImageUrl     String?
+  logoUrl           String?
+  accentColor       String    @default("#8C7B6B")
+  welcomeMessage    String    @default("Comparte con nosotros las fotos que has hecho hoy")
+  thankYouMessage   String    @default("¡Gracias por compartir tus recuerdos!")
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  uploads           Upload[]
+
+  @@index([slug])
+}
+
+enum UploadStatus {
+  PENDING
+  UPLOADING
+  COMPLETED
+  FAILED
+}
+
+/// Metadatos de cada archivo subido. Un registro por foto.
+model Upload {
+  id             String       @id @default(cuid())
+  eventId        String
+  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // Clave de idempotencia enviada por el cliente para evitar duplicados
+  // por reintentos de una misma foto.
+  idempotencyKey String
+  originalName   String
+  storedName     String?
+  mimeType       String?
+  sizeBytes      Int?
+  // ID del archivo en Google Drive (null si aún no se ha completado).
+  driveFileId    String?
+  // SHA-256 del contenido, si se pudo calcular en streaming.
+  sha256         String?
+  guestName      String?
+  // Hash de la IP (nunca la IP completa).
+  ipHash         String?
+  status         UploadStatus @default(PENDING)
+  errorMessage   String?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Idempotencia real a nivel de BD: una clave por evento.
+  @@unique([eventId, idempotencyKey])
+  @@index([eventId, status])
+  @@index([eventId, createdAt])
+}
+
+/// Sesión firmada del panel de administración (MVP).
+/// La cookie httpOnly guarda solo el id; el servidor valida contra esta tabla.
+model AdminSession {
+  id        String   @id @default(cuid())
+  // Hash del token de sesión (no se guarda el token en claro).
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+/// Configuración de la app almacenada en BD (clave/valor).
+/// Se usa, entre otras cosas, para guardar el refresh token de Google
+/// obtenido mediante el botón "Conectar Google Drive" del panel.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+/// Rate limiting persistente (ventana fija por clave evento+ipHash).
+model RateLimitEntry {
+  id          String   @id @default(cuid())
+  // Clave compuesta: "<eventId>:<ipHash>".
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@unique([key, windowStart])
+  @@index([windowStart])
+}

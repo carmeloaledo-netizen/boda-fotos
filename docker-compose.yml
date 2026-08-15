@@ -1,0 +1,40 @@
+# Entorno de desarrollo local: PostgreSQL + la app.
+# Uso:
+#   cp .env.example .env   (y rellena valores)
+#   docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boda
+      POSTGRES_PASSWORD: boda
+      POSTGRES_DB: boda
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boda"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Sobrescribe DATABASE_URL para apuntar al servicio "db".
+      DATABASE_URL: "postgresql://boda:boda@db:5432/boda?schema=public"
+      RUN_MIGRATIONS: "1"
+      NODE_ENV: "production"
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
