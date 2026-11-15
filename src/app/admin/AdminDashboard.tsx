@@ -363,6 +363,9 @@ interface DetailData {
     id: string; originalName: string; storedName: string | null;
     guestName: string | null; sizeBytes: number | null; status: string; createdAt: string;
   }[];
+  messages: {
+    id: string; guestName: string | null; message: string; createdAt: string;
+  }[];
 }
 
 function EventDetail({ id, onChange }: { id: string; onChange: () => void }) {
@@ -393,6 +396,45 @@ function EventDetail({ id, onChange }: { id: string; onChange: () => void }) {
           <ul className="text-xs text-ink-soft mt-1 space-y-1">
             {data.failed.map((f) => (
               <li key={f.id}>{f.originalName}: {f.errorMessage}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(data.messages ?? []).length > 0 && (
+        <div className="mt-5">
+          <p className="text-sm font-medium text-ink">
+            Mensajes de los invitados ({data.messages.length})
+          </p>
+          <ul className="mt-2 space-y-2">
+            {data.messages.map((m) => (
+              <li
+                key={m.id}
+                className="rounded-xl border border-ivory-200 bg-ivory-50 px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-ink whitespace-pre-wrap break-words min-w-0">
+                    {m.message}
+                  </p>
+                  <button
+                    className="text-xs text-red-700 underline shrink-0"
+                    onClick={async () => {
+                      if (!confirm("¿Eliminar este mensaje?")) return;
+                      await apiMutate(
+                        `/api/admin/events/${id}?messageId=${m.id}`,
+                        "DELETE"
+                      );
+                      await reload();
+                    }}
+                  >
+                    Borrar
+                  </button>
+                </div>
+                <p className="text-xs text-ink-faint mt-1">
+                  {m.guestName ? `${m.guestName} · ` : "Anónimo · "}
+                  {new Date(m.createdAt).toLocaleString("es-ES")}
+                </p>
+              </li>
             ))}
           </ul>
         </div>

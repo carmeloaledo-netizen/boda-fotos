@@ -39,6 +39,7 @@ model Event {
   updatedAt         DateTime  @updatedAt
 
   uploads           Upload[]
+  guestMessages     GuestMessage[]
 
   @@index([slug])
 }
@@ -79,6 +80,23 @@ model Upload {
   // Idempotencia real a nivel de BD: una clave por evento.
   @@unique([eventId, idempotencyKey])
   @@index([eventId, status])
+  @@index([eventId, createdAt])
+}
+
+/// Mensaje de un invitado para los novios (libro de firmas digital).
+/// Solo texto; nunca toca Drive. Un registro por mensaje enviado.
+model GuestMessage {
+  id         String   @id @default(cuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  guestName  String?
+  message    String
+  // Hash de la IP (nunca la IP completa), para moderación/abuso.
+  ipHash     String?
+
+  createdAt  DateTime @default(now())
+
   @@index([eventId, createdAt])
 }
 

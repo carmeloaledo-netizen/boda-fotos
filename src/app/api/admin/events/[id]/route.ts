@@ -20,7 +20,7 @@ export async function GET(
   const event = await prisma.event.findUnique({ where: { id: params.id } });
   if (!event) return jsonError("Evento no encontrado", 404);
 
-  const [agg, completed, failed, recent] = await Promise.all([
+  const [agg, completed, failed, recent, messages] = await Promise.all([
     prisma.upload.aggregate({
       where: { eventId: event.id, status: "COMPLETED" },
       _sum: { sizeBytes: true },
@@ -47,6 +47,12 @@ export async function GET(
         createdAt: true,
       },
     }),
+    prisma.guestMessage.findMany({
+      where: { eventId: event.id },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: { id: true, guestName: true, message: true, createdAt: true },
+    }),
   ]);
 
   return jsonOk({
@@ -71,6 +77,14 @@ export async function GET(
     },
     failed,
     recent,
+    messages: messages.map(
+      (m: { id: string; guestName: string | null; message: string; createdAt: Date }) => ({
+        id: m.id,
+        guestName: m.guestName,
+        message: m.message,
+        createdAt: m.createdAt.toISOString(),
+      })
+    ),
   });
 }
 
@@ -136,6 +150,14 @@ export async function DELETE(
       where: { id: uploadId, eventId: params.id },
     });
     return jsonOk({ deleted: "upload" });
+  }
+
+  const messageId = req.nextUrl.searchParams.get("messageId");
+  if (messageId) {
+    await prisma.guestMessage.deleteMany({
+      where: { id: messageId, eventId: params.id },
+    });
+    return jsonOk({ deleted: "message" });
   }
 
   const event = await prisma.event.findUnique({ where: { id: params.id } });
